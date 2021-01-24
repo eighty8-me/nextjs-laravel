@@ -1,0 +1,6 @@
+containers/laravel/composer/
+containers/postgres/data/
+frontend/.next/
+frontend/.node-version
+frontend/next-env.d.ts
+frontend/node_modules/

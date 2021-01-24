@@ -1,0 +1,74 @@
+version: '3.7'
+
+services:
+  laravel:
+    build:
+      context: ./containers/laravel
+    container_name: api
+    volumes:
+      - ./api:/var/www/app/api
+    environment:
+      - DB_CONNECTION=$DB_CONN
+      - DB_HOST=$DB_HOST
+      - DB_PORT=$DB_PORT
+      - DB_DATABASE=$DB_NAME
+      - DB_USERNAME=$DB_USER
+      - DB_PASSWORD=$DB_PASS
+    links:
+      - postgres
+    depends_on:
+      - postgres
+    restart: always
+  postgres:
+    build:
+      context: ./containers/postgres
+    container_name: db
+    environment:
+      - POSTGRES_USER=$DB_USER
+      - POSTGRES_PASSWORD=$DB_PASS
+      - POSTGRES_DB=$DB_NAME
+      - POSTGRES_INITDB_ARGS=$PG_INITDB_ARGS
+    ports:
+      - $DB_PORT:5432
+    restart: always
+    volumes:
+      - ./containers/postgres/data:/var/lib/postgresql/data
+      - ./containers/postgres/initdb:/docker-entrypoint-initdb.d
+  nginx:
+    build:
+      context: ./containers/nginx
+    container_name: server
+    ports:
+      - $NGINX_PORT1:8080
+      - $NGINX_PORT2:9090
+    volumes:
+      - ./api:/var/www/app/api
+    links:
+      - laravel
+      - nextjs
+    depends_on:
+      - laravel
+      - postgres
+      - nextjs
+    restart: always
+  nextjs:
+    build:
+      context: ./
+      dockerfile: ./containers/nextjs/Dockerfile
+    container_name: frontend
+    ports:
+      - $NEXTJS_PORT:3000
+    tty: true
+    volumes:
+      #- ./frontend:/var/www/app/frontend
+      # この指定だと、Dockerfile で npm install したにも関わらず、ホスト側では node_modules は作成されてないので、
+      # コンテナ側には src と package.json だけしか同期されない。（コンテナに作成された node_modules や .next、package-lock.json は消えてしまう）
+      # なので、npm run start を実行すると node_modules が無いため、next コマンドが実行できずエラーになってしまう。
+      #
+      # 参考: https://castaneai.hatenablog.com/entry/2019/01/29/151257
+      #
+      # 【回避策】
+      # ホストとコンテナの双方で存在する src ディレクトリを Volume に指定する。（Dockerfile の 'COPY ./frontend ./' でコピーしている）
+      # よって、生成した node_modules 等は消失しないため、next コマンドが実行できる。
+      #
+      - ./frontend:/var/www/app/frontend
